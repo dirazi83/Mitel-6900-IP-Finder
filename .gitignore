@@ -21,6 +21,9 @@ subnet.xml
 # Local prototype kept out of the published tree
 main_nmap_legacy.py
 
+# Source artwork lives in assets/, not the repo root
+Mitel.png
+
 # Editors / OS
 .vscode/
 .idea/

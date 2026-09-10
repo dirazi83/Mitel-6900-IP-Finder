@@ -4,6 +4,13 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.2] - 2026-09-10
+
+### Changed
+- Application icon replaced with the project's desk-phone artwork. The build
+  script now keys the flattened checkerboard out of the source PNG, trims and
+  squares the artwork, and packs it into the multi-resolution `.ico`.
+
 ## [1.0.1] - 2026-09-10
 
 ### Added
@@ -43,5 +50,6 @@ First public release.
 - `14` is not an IEEE-registered Mitel OUI; it is supported as a user-supplied
   filter. The registered Mitel OUIs are `08:00:0F` and `00:08:5D`.
 
+[1.0.2]: https://github.com/dirazi83/Mitel-6900-SIP-IP-Finder/releases/tag/v1.0.2
 [1.0.1]: https://github.com/dirazi83/Mitel-6900-SIP-IP-Finder/releases/tag/v1.0.1
 [1.0.0]: https://github.com/dirazi83/Mitel-6900-SIP-IP-Finder/releases/tag/v1.0.0

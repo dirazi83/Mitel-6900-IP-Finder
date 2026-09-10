@@ -140,7 +140,7 @@ Produce the standalone executable:
 env\Scripts\python.exe -m PyInstaller --noconfirm --clean MitelPhoneFinder.spec
 ```
 
-The application icon is generated from source, not hand-drawn — regenerate
+The application icon is generated from `assets/logo_source.png` — regenerate
 `assets/appicon.ico` and `assets/appicon.png` with:
 
 ```bat
