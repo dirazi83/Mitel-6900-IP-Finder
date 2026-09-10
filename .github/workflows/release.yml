@@ -1,0 +1,58 @@
+name: Build and release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pyinstaller
+
+      - name: Sanity check the engine
+        run: python -c "import scanner; print('engine', scanner.__version__)"
+
+      - name: Build executable
+        run: python -m PyInstaller --noconfirm --clean MitelPhoneFinder.spec
+
+      - name: Smoke test the executable
+        run: .\dist\MitelPhoneFinder.exe --version
+
+      - name: Checksum
+        run: |
+          Get-FileHash .\dist\MitelPhoneFinder.exe -Algorithm SHA256 |
+            ForEach-Object { "$($_.Hash.ToLower())  MitelPhoneFinder.exe" } |
+            Out-File -Encoding ascii .\dist\MitelPhoneFinder.exe.sha256
+          Get-Content .\dist\MitelPhoneFinder.exe.sha256
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MitelPhoneFinder-windows
+          path: |
+            dist/MitelPhoneFinder.exe
+            dist/MitelPhoneFinder.exe.sha256
+
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Mitel 6900 IP Phone Finder ${{ github.ref_name }}
+          body_file: CHANGELOG.md
+          files: |
+            dist/MitelPhoneFinder.exe
+            dist/MitelPhoneFinder.exe.sha256
