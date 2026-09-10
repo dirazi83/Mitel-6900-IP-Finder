@@ -10,7 +10,7 @@ transparency checkerboard flattened into the pixels, so the background is
 keyed out first: the checker colours are sampled from the border and flood
 filled inward from the edges, which leaves similar greys inside the artwork
 untouched. The result is trimmed, squared, scaled to each icon size and packed
-into a multi-resolution .ico.
+into a multi-resolution .ico for Windows and .icns for macOS.
 """
 import collections
 import os
@@ -26,6 +26,7 @@ SIZES = (16, 24, 32, 48, 64, 128, 256)
 SOURCE = os.path.join('assets', 'logo_source.png')
 OUTPUT = os.path.join('assets', 'appicon.ico')
 PREVIEW = os.path.join('assets', 'appicon.png')
+ICNS = os.path.join('assets', 'appicon.icns')
 
 TOLERANCE = 62      # per-channel distance that still counts as background
 MARGIN_RATIO = 0.02  # breathing room around the artwork, as a share of the side
@@ -138,6 +139,26 @@ def png_bytes(image):
     return bytes(storage)
 
 
+def write_icns(path, master):
+    """Write a macOS .icns from PNG frames (OS X 10.7 and later read these)."""
+    # (four-character chunk type, pixel size) - retina variants share a size.
+    frames = (('icp4', 16), ('icp5', 32), ('ic11', 32), ('ic12', 64),
+              ('ic07', 128), ('ic13', 256), ('ic08', 256), ('ic14', 512),
+              ('ic09', 512))
+    body = b''
+    rendered = {}
+    for chunk_type, size in frames:
+        if size not in rendered:
+            scaled = master.scaled(size, size, Qt.AspectRatioMode.IgnoreAspectRatio,
+                                   Qt.TransformationMode.SmoothTransformation)
+            rendered[size] = png_bytes(scaled)
+        payload = rendered[size]
+        body += chunk_type.encode('ascii') + struct.pack('>I', len(payload) + 8) + payload
+    os.makedirs(os.path.dirname(path) or '.', exist_ok=True)
+    with open(path, 'wb') as output:
+        output.write(b'icns' + struct.pack('>I', len(body) + 8) + body)
+
+
 def write_ico(path, images):
     """Pack PNG-encoded images into an .ico (PNG frames, Vista and later)."""
     payloads = [png_bytes(image) for image in images]
@@ -168,10 +189,12 @@ def main():
                             Qt.TransformationMode.SmoothTransformation)
               for size in SIZES]
     write_ico(OUTPUT, images)
+    write_icns(ICNS, master)
     images[-1].save(PREVIEW, 'PNG')
     app.quit()
     print('Wrote %s (%d bytes, sizes: %s)'
           % (OUTPUT, os.path.getsize(OUTPUT), ', '.join(str(s) for s in SIZES)))
+    print('Wrote %s (%d bytes)' % (ICNS, os.path.getsize(ICNS)))
     print('Wrote %s (%d bytes)' % (PREVIEW, os.path.getsize(PREVIEW)))
     return 0
 

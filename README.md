@@ -8,13 +8,13 @@
 [![Build](https://github.com/dirazi83/Mitel-6900-SIP-IP-Finder/actions/workflows/release.yml/badge.svg)](https://github.com/dirazi83/Mitel-6900-SIP-IP-Finder/actions/workflows/release.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://www.python.org/)
-[![Platform](https://img.shields.io/badge/platform-Windows-lightgrey.svg)](#requirements)
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS-lightgrey.svg)](#requirements)
 
 Find every Mitel 6900-series IP phone on a subnet — IP address, MAC address,
-model and firmware — from a single Windows executable.
+model and firmware — from a single download on Windows and macOS.
 
-No Nmap. No Npcap. No WinPcap. No Python on the target PC. No administrator
-rights. Discovery uses nothing but ordinary TCP/UDP sockets and the Windows
+No Nmap. No Npcap. No WinPcap. No Python on the target machine. No
+administrator or root rights. Discovery uses nothing but ordinary TCP/UDP sockets and the Windows
 ARP cache.
 
 Example output (illustrative):
@@ -57,9 +57,24 @@ IP address        | MAC address       | Vendor              | Model | Firmware  
 
 ## Quick start
 
-1. Download `MitelPhoneFinder.exe` from the [latest release](https://github.com/dirazi83/Mitel-6900-SIP-IP-Finder/releases/latest).
-2. Run it. Windows SmartScreen may warn about an unsigned binary — choose **More info → Run anyway**, or build it yourself (see [Build from source](#build-from-source)).
+Grab the build for your platform from the [latest release](https://github.com/dirazi83/Mitel-6900-SIP-IP-Finder/releases/latest).
+
+### Windows
+
+1. Download `MitelPhoneFinder.exe`.
+2. Run it. SmartScreen may warn about an unsigned binary — choose **More info → Run anyway**, or build it yourself (see [Build from source](#build-from-source)).
 3. Pick the subnet (local interfaces are detected automatically), then **Start scan**.
+
+### macOS
+
+1. Download `MitelPhoneFinder-macOS-arm64.zip` (Apple silicon) or `MitelPhoneFinder-macOS-x86_64.zip` (Intel) and unzip it.
+2. The app is not notarised, so the first launch needs **right-click → Open → Open**, or:
+
+   ```bash
+   xattr -dr com.apple.quarantine "Mitel Phone Finder.app"
+   ```
+
+3. On macOS 15 and later, approve the **Local Network** prompt — without it every scan comes back empty. It can be re-enabled in **System Settings → Privacy & Security → Local Network**.
 
 For MAC addresses to appear, run it from a PC on the **same VLAN as the phones** — usually the voice VLAN. Across a router, MAC discovery is impossible by design; the HTTP and SIP fingerprints still work.
 
@@ -120,11 +135,15 @@ The IEEE-registered Mitel OUIs are **`08:00:0F`** (Mitel Corporation) and **`00:
 
 ## Requirements
 
-**To run the release binary:** Windows 10 or 11, x64. Nothing else.
+**To run the release build:** Windows 10 or 11 (x64), or macOS 11 Big Sur and later (Apple silicon or Intel). Nothing else.
 
 **To run from source:** Python 3.9+ and PySide6 (GUI only — the scan engine in `scanner.py` imports nothing outside the standard library, so CLI mode works on a bare Python install).
 
+The engine shells out to the tools each platform already ships: PowerShell's `Get-NetIPAddress` / `Get-NetRoute` and `arp -a` on Windows, `ifconfig`, `route -n get default` and `arp -an` on macOS.
+
 ## Build from source
+
+Windows:
 
 ```bat
 git clone https://github.com/dirazi83/Mitel-6900-SIP-IP-Finder.git
@@ -134,10 +153,26 @@ env\Scripts\python.exe -m pip install -r requirements.txt pyinstaller
 env\Scripts\python.exe main.py
 ```
 
+macOS:
+
+```bash
+git clone https://github.com/dirazi83/Mitel-6900-SIP-IP-Finder.git
+cd Mitel-6900-SIP-IP-Finder
+python3 -m venv env
+env/bin/python -m pip install -r requirements.txt pyinstaller
+env/bin/python main.py
+```
+
 Produce the standalone executable:
 
 ```bat
 env\Scripts\python.exe -m PyInstaller --noconfirm --clean MitelPhoneFinder.spec
+```
+
+The same spec builds `Mitel Phone Finder.app` on macOS:
+
+```bash
+env/bin/python -m PyInstaller --noconfirm --clean MitelPhoneFinder.spec
 ```
 
 The application icon is generated from `assets/logo_source.png` — regenerate
@@ -158,13 +193,16 @@ The result is `dist\MitelPhoneFinder.exe`. Pushing a `v*` tag runs the same buil
 | Phone found but **Model** is `-` | Its web server is disabled or SIP is on a non-default port. The MAC match still identifies it. |
 | Scan is slow | Lower the timeout, raise the threads, or scan a range (`10.0.2.10-60`) instead of a full /24. |
 | SmartScreen blocks the download | The binary is unsigned. Verify the SHA-256 published with the release, or build it yourself. |
+| macOS says the app "is damaged" or cannot be opened | Gatekeeper quarantine on an unsigned app. Right-click → Open, or `xattr -dr com.apple.quarantine "Mitel Phone Finder.app"`. |
+| macOS scan returns nothing at all | Local Network access was denied. **System Settings → Privacy & Security → Local Network**, enable Mitel Phone Finder. |
 | Antivirus flags the `.exe` | PyInstaller bundles are a common false positive. Build from source if your policy forbids unsigned bundles. |
 
 ## Limitations
 
 - MAC discovery is Layer 2: same Ethernet segment/VLAN only.
 - A phone with its web interface disabled *and* SIP on a non-standard port is detectable by MAC only.
-- Windows only. The engine is portable Python, but interface enumeration and the ARP read use Windows commands.
+- Windows and macOS. The engine is portable Python; Linux mostly works from source but is not built or tested by CI.
+- The macOS build is unsigned and not notarised, so the first launch needs the Gatekeeper override above.
 - A MAC prefix match is a candidate, not proof. Confirm with the model column.
 - An empty result does not prove there are no phones on the network.
 

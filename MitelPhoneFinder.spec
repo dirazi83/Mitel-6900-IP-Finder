@@ -1,8 +1,16 @@
 # -*- mode: python ; coding: utf-8 -*-
-"""PyInstaller build recipe: one windowed .exe, no Python needed on the target PC.
+"""PyInstaller build recipe: one self-contained app per platform.
 
     python -m PyInstaller --noconfirm MitelPhoneFinder.spec
+
+Windows produces dist/MitelPhoneFinder.exe with an embedded version resource.
+macOS produces dist/MitelPhoneFinder (a command line binary) and
+dist/Mitel Phone Finder.app. Neither needs Python on the target machine.
 """
+import sys
+
+IS_MAC = sys.platform == 'darwin'
+VERSION = '1.1.0'
 
 block_cipher = None
 
@@ -50,6 +58,28 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    version='version_info.txt',
-    icon='assets/appicon.ico',
+    version=None if IS_MAC else 'version_info.txt',
+    icon='assets/appicon.icns' if IS_MAC else 'assets/appicon.ico',
 )
+
+if IS_MAC:
+    app = BUNDLE(
+        exe,
+        name='Mitel Phone Finder.app',
+        icon='assets/appicon.icns',
+        bundle_identifier='io.github.dirazi83.mitelphonefinder',
+        version=VERSION,
+        info_plist={
+            'CFBundleName': 'Mitel Phone Finder',
+            'CFBundleDisplayName': 'Mitel 6900 IP Phone Finder',
+            'CFBundleShortVersionString': VERSION,
+            'CFBundleVersion': VERSION,
+            'LSMinimumSystemVersion': '11.0',
+            'LSApplicationCategoryType': 'public.app-category.utilities',
+            'NSHighResolutionCapable': True,
+            'NSHumanReadableCopyright': 'Copyright (c) 2026 dirazi83. MIT License.',
+            # macOS 15 and later gate LAN access behind an explicit prompt.
+            'NSLocalNetworkUsageDescription':
+                'Mitel Phone Finder scans the local network to list Mitel IP phones.',
+        },
+    )

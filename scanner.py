@@ -24,6 +24,7 @@ from __future__ import annotations
 import concurrent.futures
 import http.client
 import ipaddress
+import os
 import random
 import re
 import socket
@@ -31,7 +32,7 @@ import ssl
 import subprocess
 import threading
 
-__version__ = '1.0.2'
+__version__ = '1.1.0'
 
 # Registered Mitel OUIs (IEEE) plus prefixes seen on Aastra-era and
 # contract-manufactured 6900 hardware. Keys are lowercase, no separators.
@@ -52,13 +53,19 @@ MODEL_RE = re.compile(r'\b(6[0-9]{3}[wi]?|53[0-9]{2}e?)\b', re.I)
 REALM_RE = re.compile(r'realm\s*=\s*"([^"]*)"', re.I)
 TITLE_RE = re.compile(r'<title[^>]*>(.*?)</title>', re.I | re.S)
 BRAND_RE = re.compile(r'\b(mitel|aastra|aragorn|minet)\b', re.I)
+# Windows: "192.168.1.1     1a-2b-3c-4d-5e-6f     dynamic"
+# macOS/BSD: "? (192.168.1.1) at 1a:2b:3c:4d:5e:6f on en0 ifscope [ethernet]"
+# BSD prints octets without a leading zero, hence the {1,2}.
 ARP_RE = re.compile(
-    r'(\d{1,3}(?:\.\d{1,3}){3})\s+([0-9a-fA-F]{2}(?:[-:][0-9a-fA-F]{2}){5})')
+    r'\(?(\d{1,3}(?:\.\d{1,3}){3})\)?\s+(?:at\s+)?'
+    r'([0-9a-fA-F]{1,2}(?:[-:][0-9a-fA-F]{1,2}){5})')
 
 FIELDS = ['IP address', 'MAC address', 'Vendor', 'Model', 'Firmware',
           'Ports', 'Evidence']
 
-_NO_WINDOW = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
+IS_WINDOWS = os.name == 'nt'
+
+_NO_WINDOW = getattr(subprocess, 'CREATE_NO_WINDOW', 0) if IS_WINDOWS else 0
 
 
 def _run(command):
@@ -73,7 +80,13 @@ def _run(command):
 
 
 def normalize_mac(mac):
-    return re.sub(r'[^0-9a-f]', '', (mac or '').lower())
+    """Lower-case hex digits only. BSD prints '0:1b:...', so pad each octet."""
+    text = (mac or '').lower()
+    if ':' in text or '-' in text:
+        octets = re.split(r'[-:]', text)
+        if len(octets) == 6 and all(re.fullmatch(r'[0-9a-f]{1,2}', o) for o in octets):
+            return ''.join(o.zfill(2) for o in octets)
+    return re.sub(r'[^0-9a-f]', '', text)
 
 
 def format_mac(mac):
@@ -88,18 +101,67 @@ def vendor_for(mac):
 
 
 def default_route_alias():
-    """Interface alias carrying the default route, or '' if unknown."""
-    script = ("(Get-NetRoute -DestinationPrefix '0.0.0.0/0' -ErrorAction SilentlyContinue | "
-              "Sort-Object RouteMetric | Select-Object -First 1).InterfaceAlias")
-    return _run(['powershell', '-NoProfile', '-NonInteractive', '-Command', script]).strip()
+    """Interface carrying the default route, or '' if it cannot be determined."""
+    if IS_WINDOWS:
+        script = ("(Get-NetRoute -DestinationPrefix '0.0.0.0/0' -ErrorAction SilentlyContinue | "
+                  "Sort-Object RouteMetric | Select-Object -First 1).InterfaceAlias")
+        return _run(['powershell', '-NoProfile', '-NonInteractive', '-Command', script]).strip()
+
+    # macOS and other BSDs.
+    for line in _run(['route', '-n', 'get', 'default']).splitlines():
+        if 'interface:' in line:
+            return line.split(':', 1)[1].strip()
+    # Linux.
+    match = re.search(r'dev\s+(\S+)', _run(['ip', 'route', 'show', 'default']))
+    return match.group(1) if match else ''
 
 
-def local_networks():
-    """Return [(cidr, interface_alias)], default-route interface first."""
+def _windows_interfaces():
     script = ("Get-NetIPAddress -AddressFamily IPv4 | "
               "Where-Object { $_.PrefixLength -lt 31 -and $_.IPAddress -ne '127.0.0.1' } | "
               "ForEach-Object { $_.IPAddress + '/' + $_.PrefixLength + ' ' + $_.InterfaceAlias }")
-    output = _run(['powershell', '-NoProfile', '-NonInteractive', '-Command', script])
+    return _run(['powershell', '-NoProfile', '-NonInteractive', '-Command', script])
+
+
+def _posix_interfaces():
+    """Render ifconfig (macOS/BSD) or ip (Linux) output as 'CIDR name' lines."""
+    lines = []
+    output = _run(['ifconfig'])
+    name = ''
+    for line in output.splitlines():
+        header = re.match(r'^(\S+):', line)
+        if header:
+            name = header.group(1)
+            continue
+        match = re.search(r'inet\s+(\d{1,3}(?:\.\d{1,3}){3})\s+netmask\s+(\S+)', line)
+        if not match:
+            continue
+        address, netmask = match.group(1), match.group(2)
+        if address.startswith('127.'):
+            continue
+        try:
+            if netmask.lower().startswith('0x'):
+                mask = ipaddress.IPv4Address(int(netmask, 16))
+            else:
+                mask = ipaddress.IPv4Address(netmask)
+            prefix = ipaddress.IPv4Network('0.0.0.0/%s' % mask).prefixlen
+        except (ValueError, ipaddress.AddressValueError):
+            continue
+        lines.append('%s/%d %s' % (address, prefix, name))
+
+    if lines:
+        return '\n'.join(lines)
+
+    for line in _run(['ip', '-o', '-4', 'addr', 'show']).splitlines():
+        match = re.search(r'^\d+:\s+(\S+)\s+inet\s+(\S+)', line)
+        if match and not match.group(2).startswith('127.'):
+            lines.append('%s %s' % (match.group(2), match.group(1)))
+    return '\n'.join(lines)
+
+
+def local_networks():
+    """Return [(cidr, interface_name)], default-route interface first."""
+    output = _windows_interfaces() if IS_WINDOWS else _posix_interfaces()
     networks = []
     for line in output.splitlines():
         parts = line.split(None, 1)
@@ -123,7 +185,8 @@ def local_networks():
 def arp_table():
     """Parse the local ARP cache into {ip: mac}."""
     table = {}
-    for line in _run(['arp', '-a']).splitlines():
+    command = ['arp', '-a'] if IS_WINDOWS else ['arp', '-an']
+    for line in _run(command).splitlines():
         match = ARP_RE.search(line)
         if not match:
             continue
@@ -146,8 +209,12 @@ def tcp_open(ip, port, timeout):
             return False
 
 
-def http_probe(ip, port, timeout):
-    """GET / and return {status, server, realm, title} for a web port."""
+def http_probe(ip, port, timeout, path='/', _redirects=1):
+    """GET a path and return {status, server, realm, title} for a web port.
+
+    Phones that redirect to a login page are followed one hop, since the
+    identifying realm often only appears on the target page.
+    """
     info = {}
     try:
         if port == 443:
@@ -157,7 +224,7 @@ def http_probe(ip, port, timeout):
         else:
             connection = http.client.HTTPConnection(ip, port, timeout=timeout)
         try:
-            connection.request('GET', '/', headers={
+            connection.request('GET', path, headers={
                 'User-Agent': 'mitel-finder/2.0', 'Connection': 'close'})
             response = connection.getresponse()
             info['status'] = response.status
@@ -165,11 +232,21 @@ def http_probe(ip, port, timeout):
             authenticate = response.getheader('WWW-Authenticate', '') or ''
             realm = REALM_RE.search(authenticate)
             info['realm'] = realm.group(1) if realm else ''
+            location = response.getheader('Location', '') or ''
             body = response.read(4096).decode('utf-8', 'replace')
             title = TITLE_RE.search(body)
             info['title'] = title.group(1).strip() if title else ''
         finally:
             connection.close()
+
+        if (_redirects > 0 and info.get('status') in (301, 302, 303, 307, 308)
+                and location and not info['realm'] and not info['server']):
+            target = re.sub(r'^https?://[^/]+', '', location) or '/'
+            if target.startswith('/') and target != path:
+                followed = http_probe(ip, port, timeout, target, _redirects - 1)
+                if followed:
+                    followed.setdefault('status', info['status'])
+                    return followed
     except (OSError, http.client.HTTPException, ssl.SSLError, ValueError):
         return {}
     return info

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Mitel 6900-series IP phone finder (PySide6 GUI).
 
-Nothing to install besides PySide6 for the window itself: discovery uses only
-the Python standard library and the ARP cache, so no Nmap, no Npcap, no packet
-driver and no administrator rights are required.
+Runs on Windows and macOS. Nothing to install besides PySide6 for the window
+itself: discovery uses only the Python standard library and the ARP cache, so
+no Nmap, no Npcap, no packet driver and no administrator rights are required.
 
   python main.py                       start the GUI
   python main.py 192.168.100.0/24      command line scan
