@@ -31,7 +31,7 @@ import ssl
 import subprocess
 import threading
 
-__version__ = '1.0.0'
+__version__ = '1.0.1'
 
 # Registered Mitel OUIs (IEEE) plus prefixes seen on Aastra-era and
 # contract-manufactured 6900 hardware. Keys are lowercase, no separators.

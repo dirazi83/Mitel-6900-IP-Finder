@@ -4,6 +4,16 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] - 2026-09-10
+
+### Added
+- Application icon: a multi-resolution `.ico` (16-256 px) embedded in the
+  executable and used as the window icon, generated reproducibly by
+  `tools/make_icon.py`.
+
+### Changed
+- Application name and version are registered with Qt at start-up.
+
 ## [1.0.0] - 2026-09-10
 
 First public release.
@@ -33,4 +43,5 @@ First public release.
 - `14` is not an IEEE-registered Mitel OUI; it is supported as a user-supplied
   filter. The registered Mitel OUIs are `08:00:0F` and `00:08:5D`.
 
+[1.0.1]: https://github.com/dirazi83/Mitel-6900-SIP-IP-Finder/releases/tag/v1.0.1
 [1.0.0]: https://github.com/dirazi83/Mitel-6900-SIP-IP-Finder/releases/tag/v1.0.0

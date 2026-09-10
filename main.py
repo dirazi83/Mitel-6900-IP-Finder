@@ -20,6 +20,17 @@ import scanner
 from scanner import FIELDS, Scanner, __version__, expand_targets, local_networks
 
 
+def resource_path(relative):
+    """Resolve a bundled data file both in a PyInstaller build and from source."""
+    base = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(base, relative)
+
+
+def app_icon():
+    """Application icon, loaded from the bundled multi-size .ico."""
+    return QIcon(resource_path(os.path.join('assets', 'appicon.ico')))
+
+
 def attach_console():
     """Frozen builds are windowed; reattach to the parent console for CLI use."""
     if os.name != 'nt' or not getattr(sys, 'frozen', False):
@@ -36,7 +47,7 @@ def attach_console():
 
 try:
     from PySide6.QtCore import QObject, QThread, Qt, Signal, Slot
-    from PySide6.QtGui import QAction, QDesktopServices
+    from PySide6.QtGui import QAction, QDesktopServices, QIcon
     from PySide6.QtCore import QUrl
     from PySide6.QtWidgets import (
         QApplication, QCheckBox, QComboBox, QDoubleSpinBox, QFileDialog,
@@ -91,6 +102,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle('Mitel 6900 IP Phone Finder %s' % __version__)
+        self.setWindowIcon(app_icon())
         self.resize(1100, 680)
         self.thread = None
         self.worker = None
@@ -395,6 +407,9 @@ def main():
                   file=sys.stderr)
             return 1
         app = QApplication(sys.argv)
+        app.setApplicationName('Mitel 6900 IP Phone Finder')
+        app.setApplicationVersion(__version__)
+        app.setWindowIcon(app_icon())
         window = MainWindow()
         window.show()
         return app.exec()

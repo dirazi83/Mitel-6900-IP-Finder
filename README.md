@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/appicon.png" alt="Mitel 6900 IP Phone Finder" width="128">
+</p>
+
 # Mitel 6900 IP Phone Finder
 
 [![Release](https://img.shields.io/github/v/release/dirazi83/Mitel-6900-SIP-IP-Finder?sort=semver)](https://github.com/dirazi83/Mitel-6900-SIP-IP-Finder/releases)
@@ -134,6 +138,13 @@ Produce the standalone executable:
 
 ```bat
 env\Scripts\python.exe -m PyInstaller --noconfirm --clean MitelPhoneFinder.spec
+```
+
+The application icon is generated from source, not hand-drawn — regenerate
+`assets/appicon.ico` and `assets/appicon.png` with:
+
+```bat
+env\Scripts\python.exe tools\make_icon.py
 ```
 
 The result is `dist\MitelPhoneFinder.exe`. Pushing a `v*` tag runs the same build on GitHub Actions and attaches the binary to the release.

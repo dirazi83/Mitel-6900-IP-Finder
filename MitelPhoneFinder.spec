@@ -10,7 +10,7 @@ analysis = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[],
-    datas=[],
+    datas=[('assets/appicon.ico', 'assets')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
@@ -51,4 +51,5 @@ exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
     version='version_info.txt',
+    icon='assets/appicon.ico',
 )
